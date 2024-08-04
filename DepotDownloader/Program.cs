@@ -50,6 +50,7 @@ namespace DepotDownloader
             var password = GetParameter<string>(args, "-password") ?? GetParameter<string>(args, "-pass");
             ContentDownloader.Config.RememberPassword = HasParameter(args, "-remember-password");
             ContentDownloader.Config.UseQrCode = HasParameter(args, "-qr");
+            ContentDownloader.Config.UseChallengeUrl = HasParameter(args, "-url");
 
             ContentDownloader.Config.DownloadManifestOnly = HasParameter(args, "-manifest-only");
 
@@ -273,7 +274,7 @@ namespace DepotDownloader
 
         static bool InitializeSteam(string username, string password)
         {
-            if (!ContentDownloader.Config.UseQrCode)
+            if (!ContentDownloader.Config.UseQrCode || !ContentDownloader.Config.UseChallengeUrl)
             {
                 if (username != null && password == null && (!ContentDownloader.Config.RememberPassword || !AccountSettingsStore.Instance.LoginTokens.ContainsKey(username)))
                 {
@@ -395,6 +396,8 @@ namespace DepotDownloader
             Console.WriteLine("\t-username <user>\t\t- the username of the account to login to for restricted content.");
             Console.WriteLine("\t-password <pass>\t\t- the password of the account to login to for restricted content.");
             Console.WriteLine("\t-remember-password\t\t- if set, remember the password for subsequent logins of this user. (Use -username <username> -remember-password as login credentials)");
+            Console.WriteLine("\t-qr <#>\t\t- authenticate using qr code. This will show the qr code within the terminal.");
+            Console.WriteLine("\t-url <#>\t\t- outputs the challenge url string to output that can be parsed into a qr code on other application.");
             Console.WriteLine();
             Console.WriteLine("\t-dir <installdir>\t\t- the directory in which to place downloaded files.");
             Console.WriteLine("\t-filelist <file.txt>\t- a list of files to download (from the manifest). Prefix file path with 'regex:' if you want to match with regex.");

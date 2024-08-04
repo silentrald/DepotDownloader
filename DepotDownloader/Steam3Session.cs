@@ -58,7 +58,9 @@ namespace DepotDownloader
         public Steam3Session(SteamUser.LogOnDetails details)
         {
             this.logonDetails = details;
-            this.authenticatedUser = details.Username != null || ContentDownloader.Config.UseQrCode;
+            this.authenticatedUser = details.Username != null
+                || ContentDownloader.Config.UseQrCode
+                || ContentDownloader.Config.UseChallengeUrl;
 
             var clientConfiguration = SteamConfiguration.Create(config =>
                 config
@@ -479,41 +481,79 @@ namespace DepotDownloader
                             return;
                         }
                     }
-                    else if (logonDetails.AccessToken is null && ContentDownloader.Config.UseQrCode)
+                    else if (logonDetails.AccessToken is null)
                     {
-                        Console.WriteLine("Logging in with QR code...");
-
-                        try
+                        if (ContentDownloader.Config.UseQrCode)
                         {
-                            var session = await steamClient.Authentication.BeginAuthSessionViaQRAsync(new AuthSessionDetails
+                            Console.WriteLine("Logging in with QR code...");
+
+                            try
                             {
-                                IsPersistentSession = ContentDownloader.Config.RememberPassword,
-                                Authenticator = new UserConsoleAuthenticator(),
-                            });
+                                var session = await steamClient.Authentication.BeginAuthSessionViaQRAsync(new AuthSessionDetails
+                                {
+                                    IsPersistentSession = ContentDownloader.Config.RememberPassword,
+                                    Authenticator = new UserConsoleAuthenticator(),
+                                });
 
-                            authSession = session;
+                                authSession = session;
 
-                            // Steam will periodically refresh the challenge url, so we need a new QR code.
-                            session.ChallengeURLChanged = () =>
-                            {
-                                Console.WriteLine();
-                                Console.WriteLine("The QR code has changed:");
+                                // Steam will periodically refresh the challenge url, so we need a new QR code.
+                                session.ChallengeURLChanged = () =>
+                                {
+                                    Console.WriteLine();
+                                    Console.WriteLine("The QR code has changed:");
 
+                                    DisplayQrCode(session.ChallengeURL);
+                                };
+
+                                // Draw initial QR code immediately
                                 DisplayQrCode(session.ChallengeURL);
-                            };
+                            }
+                            catch (TaskCanceledException)
+                            {
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Error.WriteLine("Failed to authenticate with Steam: " + ex.Message);
+                                Abort(false);
+                                return;
+                            }
 
-                            // Draw initial QR code immediately
-                            DisplayQrCode(session.ChallengeURL);
                         }
-                        catch (TaskCanceledException)
+                        else if (ContentDownloader.Config.UseChallengeUrl)
                         {
-                            return;
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.Error.WriteLine("Failed to authenticate with Steam: " + ex.Message);
-                            Abort(false);
-                            return;
+                            Console.WriteLine("Logging in with Challenge URL...");
+
+                            try
+                            {
+                                var session = await steamClient.Authentication.BeginAuthSessionViaQRAsync(new AuthSessionDetails
+                                {
+                                    IsPersistentSession = ContentDownloader.Config.RememberPassword,
+                                    Authenticator = new SilentConsoleAuthenticator(),
+                                });
+
+                                authSession = session;
+
+                                // Steam will periodically refresh the challenge url.
+                                session.ChallengeURLChanged = () =>
+                                {
+                                    Console.WriteLine("Refreshing Challenge URL");
+                                    Console.WriteLine("Challenge URL: " + session.ChallengeURL);
+                                };
+
+                                Console.WriteLine("Challenge URL: " + session.ChallengeURL);
+                            }
+                            catch (TaskCanceledException)
+                            {
+                                return;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Error.WriteLine("Failed to authenticate with Steam: " + ex.Message);
+                                Abort(false);
+                                return;
+                            }
                         }
                     }
                 }
